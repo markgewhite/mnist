@@ -6,7 +6,7 @@ A DCGAN that generates handwritten digit images, ported from MATLAB.
 from .models import Generator, Discriminator
 from .gan import MNISTGAN
 from .trainer import GANTrainer, train_gan
-from .callbacks import SampleGeneratorCallback, ProgressCallback
+from .callbacks import SampleGeneratorCallback, ProgressCallback, NotebookImageCallback
 from .utils import (
     get_device_info,
     print_device_info,
@@ -28,6 +28,7 @@ __all__ = [
     # Callbacks
     "SampleGeneratorCallback",
     "ProgressCallback",
+    "NotebookImageCallback",
     # Utilities
     "get_device_info",
     "print_device_info",

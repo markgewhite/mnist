@@ -3,10 +3,86 @@
 import os
 from typing import Optional
 
+import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
 
 from .utils import save_image_grid, sample_latent_vectors
+
+
+class NotebookImageCallback(keras.callbacks.Callback):
+    """Callback to display generated images inline in Jupyter notebooks.
+
+    Updates a single figure in place at the end of each epoch.
+    """
+
+    def __init__(
+        self,
+        num_samples: int = 25,
+        latent_dim: int = 100,
+        seed: int = 42,
+        figsize: tuple = (8, 8)
+    ):
+        """Initialize the callback.
+
+        Args:
+            num_samples: Number of images to generate (should be a perfect square).
+            latent_dim: Dimension of latent vectors.
+            seed: Random seed for consistent latent vectors.
+            figsize: Figure size in inches.
+        """
+        super().__init__()
+        self.num_samples = num_samples
+        self.latent_dim = latent_dim
+        self.figsize = figsize
+
+        # Create fixed latent vectors for consistent comparison
+        self.fixed_latent = sample_latent_vectors(
+            num_samples, latent_dim, seed=seed
+        )
+
+        self._epoch = 0
+
+    def on_epoch_end(self, epoch: int, logs: Optional[dict] = None) -> None:
+        """Display generated images at end of each epoch."""
+        from IPython.display import clear_output, display
+
+        self._epoch = epoch
+
+        # Generate images
+        generated = self.model.generate_from_latent(self.fixed_latent)
+        images = generated.numpy()
+        images = (images + 1) / 2.0  # Rescale from [-1, 1] to [0, 1]
+        images = np.clip(images, 0, 1)
+
+        # Create grid
+        cols = int(np.ceil(np.sqrt(self.num_samples)))
+        rows = int(np.ceil(self.num_samples / cols))
+
+        # Clear previous output and display new
+        clear_output(wait=True)
+
+        fig, axes = plt.subplots(rows, cols, figsize=self.figsize)
+        axes = np.array(axes).flatten()
+
+        for i, ax in enumerate(axes):
+            ax.axis('off')
+            if i < self.num_samples:
+                ax.imshow(images[i, :, :, 0], cmap='gray', vmin=0, vmax=1)
+
+        # Add epoch info and metrics
+        title = f"Epoch {epoch + 1}"
+        if logs:
+            g_loss = logs.get('g_loss', 0)
+            d_loss = logs.get('d_loss', 0)
+            g_score = logs.get('g_score', 0)
+            d_score = logs.get('d_score', 0)
+            title += f" | G Loss: {g_loss:.3f} | D Loss: {d_loss:.3f} | G: {g_score:.3f} | D: {d_score:.3f}"
+
+        fig.suptitle(title, fontsize=12)
+        plt.tight_layout()
+        plt.show()
 
 
 class SampleGeneratorCallback(keras.callbacks.Callback):
