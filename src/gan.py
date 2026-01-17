@@ -28,7 +28,6 @@ class MNISTGAN(keras.Model):
         self,
         latent_dim: int = 100,
         flip_factor: float = 0.3,
-        label_smoothing: float = 0.1,
         name: str = "MNISTGAN"
     ):
         """Initialize the MNIST GAN.
@@ -36,20 +35,15 @@ class MNISTGAN(keras.Model):
         Args:
             latent_dim: Dimension of latent input vector for generator.
             flip_factor: Fraction of real labels to flip (regularization).
-            label_smoothing: Smooth real labels from 1.0 to (1.0 - smoothing).
             name: Name identifier for the model.
         """
         super().__init__(name=name)
         self.latent_dim = latent_dim
         self.flip_factor = flip_factor
-        self.label_smoothing = label_smoothing
 
         # Build component networks
         self.generator = Generator(latent_dim=latent_dim)
         self.discriminator = Discriminator()
-
-        # Loss function - BCE from logits for numerical stability
-        self.bce_loss = keras.losses.BinaryCrossentropy(from_logits=True)
 
         # Metrics
         self.g_loss_metric = keras.metrics.Mean(name="g_loss")
@@ -99,92 +93,60 @@ class MNISTGAN(keras.Model):
             self.d_score_metric
         ]
 
-    def _flip_labels(self, labels: tf.Tensor, batch_size: int) -> tf.Tensor:
-        """Flip a fraction of labels for regularization.
-
-        Matches MATLAB logic: randomly select flip_factor fraction of samples
-        and flip their labels (1->0 for real images).
-
-        Args:
-            labels: Original labels tensor.
-            batch_size: Number of samples in batch.
-
-        Returns:
-            Labels with some flipped.
-        """
-        # Number of labels to flip
-        num_flip = tf.cast(
-            tf.cast(batch_size, tf.float32) * self.flip_factor,
-            tf.int32
-        )
-
-        # Random indices to flip
-        indices = tf.random.shuffle(tf.range(batch_size))[:num_flip]
-
-        # Create flip mask
-        flip_mask = tf.scatter_nd(
-            indices=tf.expand_dims(indices, 1),
-            updates=tf.ones(num_flip),
-            shape=[batch_size]
-        )
-        flip_mask = tf.expand_dims(flip_mask, 1)
-
-        # Flip: where mask is 1, labels become (1 - labels)
-        flipped_labels = labels * (1 - flip_mask) + (1 - labels) * flip_mask
-
-        return flipped_labels
-
     def train_step(self, real_images: tf.Tensor) -> dict:
-        """Custom training step implementing MATLAB GAN training logic.
+        """Custom training step - EXACT MATLAB match.
 
-        Matches MATLAB modelGradients.m: both G and D gradients are computed
-        from the SAME fake images in a single forward pass, then both networks
-        are updated.
-
-        Args:
-            real_images: Batch of real images from dataset.
-
-        Returns:
-            Dictionary of metric values.
+        MATLAB modelGradients.m:
+            1. Forward pass through both networks
+            2. Compute probabilities with sigmoid
+            3. Flip some real probabilities (not labels)
+            4. Compute log-based losses manually
+            5. Compute gradients and update
         """
         batch_size = tf.shape(real_images)[0]
+        eps = 1e-7  # For numerical stability in log
 
-        # Sample random latent vectors (same z used for both G and D training)
+        # Sample random latent vectors
         z = tf.random.normal(shape=(batch_size, self.latent_dim))
-
-        # Labels for real and fake images
-        # One-sided label smoothing: real labels are (1 - smoothing) instead of 1.0
-        real_labels = tf.ones((batch_size, 1)) * (1.0 - self.label_smoothing)
-        fake_labels = tf.zeros((batch_size, 1))
-
-        # For generator loss, use unsmoothed labels (we want D to output 1.0)
-        real_labels_unsmoothed = tf.ones((batch_size, 1))
-
-        # Apply label flipping to real labels (regularization)
-        flipped_real_labels = self._flip_labels(real_labels, batch_size)
 
         # === Compute both gradients from same fake images (matches MATLAB) ===
         with tf.GradientTape() as g_tape, tf.GradientTape() as d_tape:
-            # Generate fake images ONCE
+            # Generate fake images
             fake_images = self.generator(z, training=True)
 
-            # Get discriminator predictions on real and fake
+            # Get discriminator logits
             real_logits = self.discriminator(real_images, training=True)
             fake_logits = self.discriminator(fake_images, training=True)
 
-            # Discriminator loss (with flipped real labels)
-            d_loss_real = self.bce_loss(flipped_real_labels, real_logits)
-            d_loss_fake = self.bce_loss(fake_labels, fake_logits)
-            d_loss = d_loss_real + d_loss_fake
+            # Convert to probabilities (MATLAB: sigmoid)
+            prob_real = tf.sigmoid(real_logits)
+            prob_fake = tf.sigmoid(fake_logits)
 
-            # Generator loss: wants discriminator to think fakes are real
-            g_loss = self.bce_loss(real_labels_unsmoothed, fake_logits)
+            # Flip some real probabilities (MATLAB: probReal(:,:,:,idx) = 1 - probReal(:,:,:,idx))
+            num_flip = tf.cast(tf.cast(batch_size, tf.float32) * self.flip_factor, tf.int32)
+            flip_indices = tf.random.shuffle(tf.range(batch_size))[:num_flip]
+            flip_mask = tf.scatter_nd(
+                tf.expand_dims(flip_indices, 1),
+                tf.ones(num_flip),
+                [batch_size]
+            )
+            flip_mask = tf.reshape(flip_mask, [-1, 1])
+
+            # Flip: where mask=1, prob becomes (1-prob)
+            prob_real_flipped = prob_real * (1 - flip_mask) + (1 - prob_real) * flip_mask
+
+            # MATLAB loss: lossDiscriminator = -mean(log(probReal)) - mean(log(1-probGenerated))
+            d_loss = -tf.reduce_mean(tf.math.log(prob_real_flipped + eps)) \
+                     -tf.reduce_mean(tf.math.log(1 - prob_fake + eps))
+
+            # MATLAB loss: lossGenerator = -mean(log(probGenerated))
+            g_loss = -tf.reduce_mean(tf.math.log(prob_fake + eps))
 
         # Compute gradients
         d_grads = d_tape.gradient(d_loss, self.discriminator.trainable_variables)
         g_grads = g_tape.gradient(g_loss, self.generator.trainable_variables)
 
-        # Update both networks (matches MATLAB order: D first, then G)
+        # Update both networks (MATLAB order: D first, then G)
         self.d_optimizer.apply_gradients(
             zip(d_grads, self.discriminator.trainable_variables)
         )
@@ -192,14 +154,8 @@ class MNISTGAN(keras.Model):
             zip(g_grads, self.generator.trainable_variables)
         )
 
-        # === Compute scores (probabilities) ===
-        prob_real = tf.sigmoid(real_logits)
-        prob_fake = tf.sigmoid(fake_logits)
-
-        # Discriminator score: average of (prob_real + (1 - prob_fake)) / 2
+        # MATLAB scores
         d_score = (tf.reduce_mean(prob_real) + tf.reduce_mean(1 - prob_fake)) / 2
-
-        # Generator score: average prob_fake (how well it fools discriminator)
         g_score = tf.reduce_mean(prob_fake)
 
         # Update metrics
