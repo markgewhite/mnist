@@ -17,10 +17,10 @@ class Generator(BaseNetwork):
     """Generator network that transforms latent vectors into images.
 
     Architecture:
-        z (100) -> Dense(3*3*112) -> BN -> ReLU -> Reshape(3,3,112)
-        -> TransConv(56, 5x5, valid) + BN + ReLU -> 7x7x56
-        -> TransConv(28, 5x5, stride=2, same) + BN + ReLU -> 14x14x28
-        -> TransConv(1, 5x5, stride=2, same) + tanh -> 28x28x1
+        z (100) -> Dense(3*3*112) -> Reshape(3,3,112)
+        -> TransConv(56, 5x5, valid) -> BN -> ReLU -> 7x7x56
+        -> TransConv(28, 5x5, stride=2, same) -> BN -> ReLU -> 14x14x28
+        -> TransConv(1, 5x5, stride=2, same) -> BN -> tanh -> 28x28x1
     """
 
     def __init__(
@@ -61,7 +61,6 @@ class Generator(BaseNetwork):
             use_bias=False,
             name="projection"
         )
-        self.bn_proj = layers.BatchNormalization(name="bn_proj")
         self.reshape = layers.Reshape(self.projection_shape, name="reshape")
 
         # TransConv1: 3x3x112 -> 7x7x56 (valid padding, no stride)
@@ -95,6 +94,7 @@ class Generator(BaseNetwork):
             use_bias=False,
             name="tconv3"
         )
+        self.bn3 = layers.BatchNormalization(name="bn3")
 
         self._layers_built = True
 
@@ -108,24 +108,23 @@ class Generator(BaseNetwork):
         Returns:
             Generated images of shape (batch_size, 28, 28, 1) in range [-1, 1].
         """
-        # Project + BN + ReLU + Reshape
+        # Project + Reshape
         x = self.dense_proj(z)
-        x = self.bn_proj(x, training=training)
-        x = tf.nn.relu(x)
         x = self.reshape(x)
 
-        # TransConv1 + BN + ReLU
+        # TransConv1 -> BN -> ReLU
         x = self.tconv1(x)
         x = self.bn1(x, training=training)
         x = tf.nn.relu(x)
 
-        # TransConv2 + BN + ReLU
+        # TransConv2 -> BN -> ReLU
         x = self.tconv2(x)
         x = self.bn2(x, training=training)
         x = tf.nn.relu(x)
 
-        # TransConv3 + tanh
+        # TransConv3 -> BN -> tanh
         x = self.tconv3(x)
+        x = self.bn3(x, training=training)
         x = tf.nn.tanh(x)
 
         return x
