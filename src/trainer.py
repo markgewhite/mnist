@@ -25,6 +25,7 @@ class GANTrainer:
     DEFAULT_BETA1 = 0.5
     DEFAULT_BETA2 = 0.999
     DEFAULT_FLIP_FACTOR = 0.3
+    DEFAULT_LABEL_SMOOTHING = 0.1
     DEFAULT_LATENT_DIM = 100
 
     def __init__(
@@ -35,6 +36,7 @@ class GANTrainer:
         beta1: float = DEFAULT_BETA1,
         beta2: float = DEFAULT_BETA2,
         flip_factor: float = DEFAULT_FLIP_FACTOR,
+        label_smoothing: float = DEFAULT_LABEL_SMOOTHING,
         latent_dim: int = DEFAULT_LATENT_DIM,
         output_dir: str = "outputs/generated_samples"
     ):
@@ -47,6 +49,7 @@ class GANTrainer:
             beta1: Beta1 parameter for Adam.
             beta2: Beta2 parameter for Adam.
             flip_factor: Fraction of real labels to flip.
+            label_smoothing: One-sided label smoothing (real labels = 1 - this).
             latent_dim: Dimension of latent vectors.
             output_dir: Directory for generated sample outputs.
         """
@@ -56,6 +59,7 @@ class GANTrainer:
         self.beta1 = beta1
         self.beta2 = beta2
         self.flip_factor = flip_factor
+        self.label_smoothing = label_smoothing
         self.latent_dim = latent_dim
         self.output_dir = output_dir
 
@@ -95,7 +99,8 @@ class GANTrainer:
         # Create GAN
         self.model = MNISTGAN(
             latent_dim=self.latent_dim,
-            flip_factor=self.flip_factor
+            flip_factor=self.flip_factor,
+            label_smoothing=self.label_smoothing
         )
 
         # Create optimizers with MATLAB-matched parameters
