@@ -27,6 +27,8 @@ class GANTrainer:
     DEFAULT_BETA2 = 0.999
     DEFAULT_FLIP_FACTOR = 0.3
     DEFAULT_LATENT_DIM = 100
+    DEFAULT_LR_DECAY_RATE = 0.96  # Decay factor per epoch
+    DEFAULT_LR_DECAY_STEPS = 1000  # Decay every N steps
 
     def __init__(
         self,
@@ -38,6 +40,8 @@ class GANTrainer:
         beta2: float = DEFAULT_BETA2,
         flip_factor: float = DEFAULT_FLIP_FACTOR,
         latent_dim: int = DEFAULT_LATENT_DIM,
+        lr_decay_rate: float = DEFAULT_LR_DECAY_RATE,
+        lr_decay_steps: int = DEFAULT_LR_DECAY_STEPS,
         output_dir: str = "outputs/generated_samples"
     ):
         """Initialize the trainer.
@@ -51,6 +55,8 @@ class GANTrainer:
             beta2: Beta2 parameter for Adam.
             flip_factor: Fraction of real probabilities to flip.
             latent_dim: Dimension of latent vectors.
+            lr_decay_rate: Exponential decay rate (applied every lr_decay_steps).
+            lr_decay_steps: Steps between each decay application.
             output_dir: Directory for generated sample outputs.
         """
         self.batch_size = batch_size
@@ -61,6 +67,8 @@ class GANTrainer:
         self.beta2 = beta2
         self.flip_factor = flip_factor
         self.latent_dim = latent_dim
+        self.lr_decay_rate = lr_decay_rate
+        self.lr_decay_steps = lr_decay_steps
         self.output_dir = output_dir
 
         self.model: Optional[MNISTGAN] = None
@@ -102,14 +110,28 @@ class GANTrainer:
             flip_factor=self.flip_factor
         )
 
-        # Create optimizers with TTUR (Two-Timescale Update Rule)
+        # Create learning rate schedules with exponential decay
+        g_lr_schedule = keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=self.g_learning_rate,
+            decay_steps=self.lr_decay_steps,
+            decay_rate=self.lr_decay_rate,
+            staircase=True
+        )
+        d_lr_schedule = keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=self.d_learning_rate,
+            decay_steps=self.lr_decay_steps,
+            decay_rate=self.lr_decay_rate,
+            staircase=True
+        )
+
+        # Create optimizers with TTUR and decay
         g_optimizer = keras.optimizers.Adam(
-            learning_rate=self.g_learning_rate,
+            learning_rate=g_lr_schedule,
             beta_1=self.beta1,
             beta_2=self.beta2
         )
         d_optimizer = keras.optimizers.Adam(
-            learning_rate=self.d_learning_rate,
+            learning_rate=d_lr_schedule,
             beta_1=self.beta1,
             beta_2=self.beta2
         )
