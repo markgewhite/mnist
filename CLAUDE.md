@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-MNIST GAN implementation in TensorFlow/Keras. A DCGAN that generates handwritten digit images.
+MNIST GAN implementation in TensorFlow/Keras. A DCGAN that generates handwritten digit images, based on the TensorFlow DCGAN tutorial with architecture optimizations.
 
 ## Build and Run Commands
 
@@ -32,12 +32,14 @@ jupyter notebook notebooks/training_demo.ipynb
 - Input: 100-dim latent vector
 - Projection: Dense(3*3*112) + Reshape
 - TransConv layers: 112 -> 56 -> 28 -> 1 filters
+- Activation: BatchNorm + LeakyReLU(0.2), tanh output
 - Output: 28x28x1 image in [-1, 1]
 
-### Discriminator
+### Discriminator (Simplified - matches TensorFlow tutorial)
 - Input: 28x28x1 image
-- Conv layers: 28 -> 56 -> 112 -> 224 -> 1 filters
-- Output: single logit
+- Conv layers: 64 -> 128 filters
+- Activation: LeakyReLU(0.2) + Dropout(0.3)
+- Output: single logit (no BatchNorm)
 
 ### Key Hyperparameters
 | Parameter | Value |
@@ -46,8 +48,8 @@ jupyter notebook notebooks/training_demo.ipynb
 | G learning rate | 0.0002 |
 | D learning rate | 0.00002 (10:1 ratio) |
 | LR decay | 0.96 every 1000 steps |
-| Flip factor | 0.1 |
 | Adam beta1 | 0.5 |
+| Loss | BinaryCrossentropy(from_logits=True) |
 
 ## Project Structure
 
@@ -68,6 +70,7 @@ notebooks/
 ## Design Notes
 
 - Uses TTUR (Two-Timescale Update Rule) with 10:1 G/D learning rate ratio
-- Probability flipping (not label flipping) for discriminator regularization
 - Exponential learning rate decay for training stability
+- BinaryCrossentropy(from_logits=True) for numerical stability
+- Simplified discriminator (2 conv layers, dropout, no BatchNorm) for stable training
 - Auto-detects GPU (Metal on Mac, CUDA on Windows/Linux)

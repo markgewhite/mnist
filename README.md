@@ -1,6 +1,6 @@
 # MNIST GAN
 
-A DCGAN (Deep Convolutional GAN) implementation in TensorFlow/Keras that generates handwritten digit images. Ported from a MATLAB implementation with matching architecture and hyperparameters.
+A DCGAN (Deep Convolutional GAN) implementation in TensorFlow/Keras that generates handwritten digit images. Based on the TensorFlow DCGAN tutorial with architecture optimizations.
 
 ## Architecture
 
@@ -10,26 +10,24 @@ graph LR
         Z[Latent z<br/>100-dim] --> D1[Dense<br/>1008]
         D1 --> R[Reshape<br/>3×3×112]
         R --> TC1[TransConv<br/>5×5, 56<br/>valid]
-        TC1 --> BN1[BN + ReLU]
+        TC1 --> BN1[BN + LeakyReLU]
         BN1 --> TC2[TransConv<br/>5×5, 28<br/>stride 2]
-        TC2 --> BN2[BN + ReLU]
+        TC2 --> BN2[BN + LeakyReLU]
         BN2 --> TC3[TransConv<br/>5×5, 1<br/>stride 2]
         TC3 --> T[tanh]
         T --> IMG[Image<br/>28×28×1]
     end
 
     subgraph Discriminator
-        I[Image<br/>28×28×1] --> DO[Dropout<br/>0.5]
-        DO --> C1[Conv 5×5, 28<br/>stride 2]
+        I[Image<br/>28×28×1] --> C1[Conv 5×5, 64<br/>stride 2]
         C1 --> LR1[LeakyReLU]
-        LR1 --> C2[Conv 5×5, 56<br/>stride 2]
-        C2 --> BN3[BN + LeakyReLU]
-        BN3 --> C3[Conv 5×5, 112<br/>stride 2]
-        C3 --> BN4[BN + LeakyReLU]
-        BN4 --> C4[Conv 5×5, 224<br/>stride 2]
-        C4 --> BN5[BN + LeakyReLU]
-        BN5 --> C5[Conv 2×2, 1<br/>valid]
-        C5 --> L[Logit]
+        LR1 --> DO1[Dropout 0.3]
+        DO1 --> C2[Conv 5×5, 128<br/>stride 2]
+        C2 --> LR2[LeakyReLU]
+        LR2 --> DO2[Dropout 0.3]
+        DO2 --> F[Flatten]
+        F --> D[Dense 1]
+        D --> L[Logit]
     end
 ```
 
@@ -40,9 +38,9 @@ graph LR
 | Dense | (batch, 1008) | Project to 3×3×112 |
 | Reshape | (batch, 3, 3, 112) | Spatial structure |
 | TransConv2D | (batch, 7, 7, 56) | 5×5, valid padding |
-| BatchNorm + ReLU | (batch, 7, 7, 56) | |
+| BatchNorm + LeakyReLU | (batch, 7, 7, 56) | α=0.2 |
 | TransConv2D | (batch, 14, 14, 28) | 5×5, stride 2 |
-| BatchNorm + ReLU | (batch, 14, 14, 28) | |
+| BatchNorm + LeakyReLU | (batch, 14, 14, 28) | α=0.2 |
 | TransConv2D | (batch, 28, 28, 1) | 5×5, stride 2 |
 | tanh | (batch, 28, 28, 1) | Output in [-1, 1] |
 
@@ -50,17 +48,12 @@ graph LR
 | Layer | Output Shape | Description |
 |-------|--------------|-------------|
 | Input | (batch, 28, 28, 1) | Image |
-| Dropout | (batch, 28, 28, 1) | p=0.5 |
-| Conv2D | (batch, 14, 14, 28) | 5×5, stride 2 |
-| LeakyReLU | (batch, 14, 14, 28) | α=0.2 |
-| Conv2D | (batch, 7, 7, 56) | 5×5, stride 2 |
-| BatchNorm + LeakyReLU | (batch, 7, 7, 56) | |
-| Conv2D | (batch, 4, 4, 112) | 5×5, stride 2 |
-| BatchNorm + LeakyReLU | (batch, 4, 4, 112) | |
-| Conv2D | (batch, 2, 2, 224) | 5×5, stride 2 |
-| BatchNorm + LeakyReLU | (batch, 2, 2, 224) | |
-| Conv2D | (batch, 1, 1, 1) | 2×2, valid |
-| Flatten | (batch, 1) | Logit output |
+| Conv2D | (batch, 14, 14, 64) | 5×5, stride 2 |
+| LeakyReLU + Dropout | (batch, 14, 14, 64) | α=0.2, p=0.3 |
+| Conv2D | (batch, 7, 7, 128) | 5×5, stride 2 |
+| LeakyReLU + Dropout | (batch, 7, 7, 128) | α=0.2, p=0.3 |
+| Flatten | (batch, 6272) | |
+| Dense | (batch, 1) | Logit output |
 
 ## Training Hyperparameters
 
@@ -76,8 +69,7 @@ Tuned for stable training with TTUR (Two-Timescale Update Rule):
 | β₂ | 0.999 |
 | Batch size | 100 |
 | Epochs | 50 |
-| Flip factor | 0.1 |
-| Loss | Binary cross-entropy |
+| Loss | Binary cross-entropy (from_logits) |
 
 ## Installation
 
@@ -134,8 +126,7 @@ trainer = GANTrainer(
     batch_size=100,
     epochs=50,
     g_learning_rate=0.0002,
-    d_learning_rate=0.00002,
-    flip_factor=0.1
+    d_learning_rate=0.00002
 )
 
 # Load data and build model
@@ -154,7 +145,7 @@ from src import MNISTGAN
 import tensorflow as tf
 
 # Create and compile
-gan = MNISTGAN(latent_dim=100, flip_factor=0.3)
+gan = MNISTGAN(latent_dim=100)
 gan.compile()
 
 # Load MNIST and train
@@ -205,12 +196,11 @@ mnist/
 | Aspect | This Implementation |
 |--------|---------------------|
 | Projection size | 3×3×112 |
-| Filter sequence | 28, 56, 112, 224 |
-| Input dropout | 0.5 on discriminator input |
+| Filter sequence | 64, 128 (discriminator) |
+| Discriminator | 2 conv layers, dropout, no BatchNorm |
 | TTUR | 10:1 G/D learning rate ratio |
-| Probability flipping | 10% of real probabilities |
 | LR decay | Exponential, 0.96 per 1000 steps |
-| Loss | BCE with manual log formulation |
+| Loss | BinaryCrossentropy(from_logits=True) |
 
 ## Requirements
 
