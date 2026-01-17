@@ -1,4 +1,4 @@
-"""Generator network for MNIST GAN - exact MATLAB match."""
+"""Generator network for MNIST GAN - TensorFlow DCGAN tutorial architecture."""
 
 import tensorflow as tf
 from tensorflow import keras
@@ -11,17 +11,16 @@ WEIGHT_INIT = keras.initializers.RandomNormal(mean=0.0, stddev=0.02)
 
 
 class Generator(BaseNetwork):
-    """Generator network matching MATLAB architecture.
+    """Generator network matching TensorFlow DCGAN tutorial.
 
-    Architecture: latent -> project -> tconv1 -> tconv2 -> tconv3 -> output
-    Filter progression: 4*n_filters -> 2*n_filters -> n_filters -> 1
+    Architecture: latent -> project -> reshape -> tconv1 -> tconv2 -> tconv3 -> output
+    Larger projection (7x7x256) for more capacity.
     """
 
-    # Network configuration (matching MATLAB)
-    n_filters = 28
+    # Network configuration (TensorFlow tutorial)
     filter_size = 5
     latent_dim = 100
-    projection_size = (3, 3, 112)  # 4 * n_filters
+    projection_size = (7, 7, 256)
     bn_momentum = 0.9
     leaky_alpha = 0.2
 
@@ -32,25 +31,26 @@ class Generator(BaseNetwork):
 
         proj_units = self.projection_size[0] * self.projection_size[1] * self.projection_size[2]
 
-        # projectAndReshapeLayer
+        # Project and reshape: 100 -> 7*7*256
         self.dense = layers.Dense(proj_units, use_bias=False, kernel_initializer=WEIGHT_INIT, name="proj_dense")
+        self.bn0 = layers.BatchNormalization(momentum=self.bn_momentum, name="bnorm0")
         self.reshape = layers.Reshape(self.projection_size, name="proj_reshape")
 
-        # transposedConv2dLayer -> 2*n_filters (valid padding, stride 1)
+        # tconv1: 7x7x256 -> 7x7x128 (stride 1, same)
         self.tconv1 = layers.Conv2DTranspose(
-            2 * self.n_filters, self.filter_size, strides=1, padding="valid",
+            128, self.filter_size, strides=1, padding="same",
             use_bias=False, kernel_initializer=WEIGHT_INIT, name="tconv1"
         )
         self.bn1 = layers.BatchNormalization(momentum=self.bn_momentum, name="bnorm1")
 
-        # transposedConv2dLayer -> n_filters (stride 2, same)
+        # tconv2: 7x7x128 -> 14x14x64 (stride 2, same)
         self.tconv2 = layers.Conv2DTranspose(
-            self.n_filters, self.filter_size, strides=2, padding="same",
+            64, self.filter_size, strides=2, padding="same",
             use_bias=False, kernel_initializer=WEIGHT_INIT, name="tconv2"
         )
         self.bn2 = layers.BatchNormalization(momentum=self.bn_momentum, name="bnorm2")
 
-        # transposedConv2dLayer -> 1 channel output (stride 2, same)
+        # tconv3: 14x14x64 -> 28x28x1 (stride 2, same)
         self.tconv3 = layers.Conv2DTranspose(
             1, self.filter_size, strides=2, padding="same",
             use_bias=False, kernel_initializer=WEIGHT_INIT, name="tconv3"
@@ -60,21 +60,23 @@ class Generator(BaseNetwork):
         pass  # Layers built in __init__
 
     def call(self, z, training=True):
-        # projectAndReshapeLayer
+        # Project: 100 -> 12544, then BatchNorm + LeakyReLU
         x = self.dense(z)
+        x = self.bn0(x, training=training)
+        x = tf.nn.leaky_relu(x, alpha=self.leaky_alpha)
         x = self.reshape(x)
 
-        # tconv1 -> bnorm1 -> leaky_relu1
+        # tconv1: 7x7x256 -> 7x7x128
         x = self.tconv1(x)
         x = self.bn1(x, training=training)
         x = tf.nn.leaky_relu(x, alpha=self.leaky_alpha)
 
-        # tconv2 -> bnorm2 -> leaky_relu2
+        # tconv2: 7x7x128 -> 14x14x64
         x = self.tconv2(x)
         x = self.bn2(x, training=training)
         x = tf.nn.leaky_relu(x, alpha=self.leaky_alpha)
 
-        # tconv3 -> tanh
+        # tconv3: 14x14x64 -> 28x28x1
         x = self.tconv3(x)
         x = tf.nn.tanh(x)
 
