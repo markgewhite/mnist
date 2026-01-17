@@ -23,6 +23,7 @@ class Generator(BaseNetwork):
     latent_dim = 100
     projection_size = (3, 3, 112)  # 4 * n_filters
     bn_momentum = 0.9
+    leaky_alpha = 0.2
 
     def __init__(self, latent_dim: int = None, name: str = "Generator"):
         super().__init__(name=name)
@@ -63,15 +64,15 @@ class Generator(BaseNetwork):
         x = self.dense(z)
         x = self.reshape(x)
 
-        # tconv1 -> bnorm1 -> relu1
+        # tconv1 -> bnorm1 -> leaky_relu1
         x = self.tconv1(x)
         x = self.bn1(x, training=training)
-        x = tf.nn.relu(x)
+        x = tf.nn.leaky_relu(x, alpha=self.leaky_alpha)
 
-        # tconv2 -> bnorm2 -> relu2
+        # tconv2 -> bnorm2 -> leaky_relu2
         x = self.tconv2(x)
         x = self.bn2(x, training=training)
-        x = tf.nn.relu(x)
+        x = tf.nn.leaky_relu(x, alpha=self.leaky_alpha)
 
         # tconv3 -> tanh
         x = self.tconv3(x)

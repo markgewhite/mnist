@@ -53,3 +53,6 @@ outputs/generated_samples/
 # Environment variables
 .env
 .env.local
+
+# Claude
+.claude/
