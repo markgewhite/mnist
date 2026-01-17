@@ -31,11 +31,11 @@ class Generator(BaseNetwork):
 
         # transposedConv2dLayer(5, 56) - valid padding, stride 1
         self.tconv1 = layers.Conv2DTranspose(56, 5, strides=1, padding="valid", use_bias=False, kernel_initializer=WEIGHT_INIT, name="tconv1")
-        self.bn1 = layers.BatchNormalization(name="bnorm1")
+        self.bn1 = layers.BatchNormalization(momentum=0.9, name="bnorm1")  # Match MATLAB momentum=0.1
 
         # transposedConv2dLayer(5, 28, stride=2, same)
         self.tconv2 = layers.Conv2DTranspose(28, 5, strides=2, padding="same", use_bias=False, kernel_initializer=WEIGHT_INIT, name="tconv2")
-        self.bn2 = layers.BatchNormalization(name="bnorm2")
+        self.bn2 = layers.BatchNormalization(momentum=0.9, name="bnorm2")  # Match MATLAB momentum=0.1
 
         # transposedConv2dLayer(5, 1, stride=2, same)
         self.tconv3 = layers.Conv2DTranspose(1, 5, strides=2, padding="same", use_bias=False, kernel_initializer=WEIGHT_INIT, name="tconv3")

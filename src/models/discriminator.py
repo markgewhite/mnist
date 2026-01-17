@@ -35,15 +35,15 @@ class Discriminator(BaseNetwork):
 
         # conv2dLayer(5, 56, stride=2, same) -> bn2
         self.conv2 = layers.Conv2D(56, 5, strides=2, padding="same", kernel_initializer=WEIGHT_INIT, name="conv2")
-        self.bn2 = layers.BatchNormalization(name="bn2")
+        self.bn2 = layers.BatchNormalization(momentum=0.9, name="bn2")  # Match MATLAB
 
         # conv2dLayer(5, 112, stride=2, same) -> bn3
         self.conv3 = layers.Conv2D(112, 5, strides=2, padding="same", kernel_initializer=WEIGHT_INIT, name="conv3")
-        self.bn3 = layers.BatchNormalization(name="bn3")
+        self.bn3 = layers.BatchNormalization(momentum=0.9, name="bn3")  # Match MATLAB
 
         # conv2dLayer(5, 224, stride=2, same) -> bn4
         self.conv4 = layers.Conv2D(224, 5, strides=2, padding="same", kernel_initializer=WEIGHT_INIT, name="conv4")
-        self.bn4 = layers.BatchNormalization(name="bn4")
+        self.bn4 = layers.BatchNormalization(momentum=0.9, name="bn4")  # Match MATLAB
 
         # conv2dLayer(2, 1) - final logit
         self.conv5 = layers.Conv2D(1, 2, strides=1, padding="valid", kernel_initializer=WEIGHT_INIT, name="conv5")
