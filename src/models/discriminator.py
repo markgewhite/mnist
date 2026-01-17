@@ -11,86 +11,55 @@ WEIGHT_INIT = keras.initializers.RandomNormal(mean=0.0, stddev=0.02)
 
 
 class Discriminator(BaseNetwork):
-    """Discriminator network matching MATLAB architecture.
+    """Discriminator network matching TensorFlow DCGAN tutorial.
 
-    Architecture: input -> dropout -> conv1 -> conv2 -> conv3 -> conv4 -> conv5 -> output
-    Filter progression: n_filters -> 2*n_filters -> 4*n_filters -> 8*n_filters -> 1
+    Architecture: input -> conv1 -> dropout -> conv2 -> dropout -> flatten -> dense
+    Simpler than MATLAB version - 2 conv layers, no BatchNorm, dropout after each conv.
     """
 
-    # Network configuration (matching MATLAB)
-    n_filters = 28
+    # Network configuration
+    n_filters = 64
     filter_size = 5
-    dropout_rate = 0.5
+    dropout_rate = 0.3
     leaky_alpha = 0.2
-    bn_momentum = 0.9
 
     def __init__(self, name: str = "Discriminator"):
         super().__init__(name=name)
 
-        # dropoutLayer
-        self.dropout = layers.Dropout(self.dropout_rate, name="dropout")
-
-        # conv2dLayer -> n_filters (no BN on first conv)
+        # conv2dLayer -> n_filters
         self.conv1 = layers.Conv2D(
             self.n_filters, self.filter_size, strides=2, padding="same",
             kernel_initializer=WEIGHT_INIT, name="conv1"
         )
+        self.dropout1 = layers.Dropout(self.dropout_rate, name="dropout1")
 
-        # conv2dLayer -> 2*n_filters + BN
+        # conv2dLayer -> 2*n_filters
         self.conv2 = layers.Conv2D(
             2 * self.n_filters, self.filter_size, strides=2, padding="same",
             kernel_initializer=WEIGHT_INIT, name="conv2"
         )
-        self.bn2 = layers.BatchNormalization(momentum=self.bn_momentum, name="bn2")
+        self.dropout2 = layers.Dropout(self.dropout_rate, name="dropout2")
 
-        # conv2dLayer -> 4*n_filters + BN
-        self.conv3 = layers.Conv2D(
-            4 * self.n_filters, self.filter_size, strides=2, padding="same",
-            kernel_initializer=WEIGHT_INIT, name="conv3"
-        )
-        self.bn3 = layers.BatchNormalization(momentum=self.bn_momentum, name="bn3")
-
-        # conv2dLayer -> 8*n_filters + BN
-        self.conv4 = layers.Conv2D(
-            8 * self.n_filters, self.filter_size, strides=2, padding="same",
-            kernel_initializer=WEIGHT_INIT, name="conv4"
-        )
-        self.bn4 = layers.BatchNormalization(momentum=self.bn_momentum, name="bn4")
-
-        # conv2dLayer -> 1 (final logit, 2x2 kernel)
-        self.conv5 = layers.Conv2D(
-            1, 2, strides=1, padding="valid",
-            kernel_initializer=WEIGHT_INIT, name="conv5"
-        )
+        # Flatten and dense output
+        self.flatten = layers.Flatten(name="flatten")
+        self.dense = layers.Dense(1, kernel_initializer=WEIGHT_INIT, name="output")
 
     def build_layers(self):
         pass  # Layers built in __init__
 
     def call(self, x, training=True):
-        # dropout
-        x = self.dropout(x, training=training)
-
-        # conv1 -> lrelu1 (no BN)
+        # conv1 -> lrelu -> dropout
         x = self.conv1(x)
         x = tf.nn.leaky_relu(x, alpha=self.leaky_alpha)
+        x = self.dropout1(x, training=training)
 
-        # conv2 -> bn2 -> lrelu2
+        # conv2 -> lrelu -> dropout
         x = self.conv2(x)
-        x = self.bn2(x, training=training)
         x = tf.nn.leaky_relu(x, alpha=self.leaky_alpha)
+        x = self.dropout2(x, training=training)
 
-        # conv3 -> bn3 -> lrelu3
-        x = self.conv3(x)
-        x = self.bn3(x, training=training)
-        x = tf.nn.leaky_relu(x, alpha=self.leaky_alpha)
-
-        # conv4 -> bn4 -> lrelu4
-        x = self.conv4(x)
-        x = self.bn4(x, training=training)
-        x = tf.nn.leaky_relu(x, alpha=self.leaky_alpha)
-
-        # conv5 -> logit
-        x = self.conv5(x)
-        x = tf.reshape(x, [-1, 1])
+        # flatten -> dense -> logit
+        x = self.flatten(x)
+        x = self.dense(x)
 
         return x
