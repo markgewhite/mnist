@@ -17,7 +17,7 @@ class Generator(BaseNetwork):
     """Generator network that transforms latent vectors into images.
 
     Architecture:
-        z (100) -> Dense(3*3*112) -> Reshape(3,3,112)
+        z (100) -> Dense(3*3*112) -> BN -> ReLU -> Reshape(3,3,112)
         -> TransConv(56, 5x5, valid) + BN + ReLU -> 7x7x56
         -> TransConv(28, 5x5, stride=2, same) + BN + ReLU -> 14x14x28
         -> TransConv(1, 5x5, stride=2, same) + tanh -> 28x28x1
@@ -61,6 +61,7 @@ class Generator(BaseNetwork):
             use_bias=False,
             name="projection"
         )
+        self.bn_proj = layers.BatchNormalization(name="bn_proj")
         self.reshape = layers.Reshape(self.projection_shape, name="reshape")
 
         # TransConv1: 3x3x112 -> 7x7x56 (valid padding, no stride)
@@ -107,8 +108,10 @@ class Generator(BaseNetwork):
         Returns:
             Generated images of shape (batch_size, 28, 28, 1) in range [-1, 1].
         """
-        # Project and reshape
+        # Project + BN + ReLU + Reshape
         x = self.dense_proj(z)
+        x = self.bn_proj(x, training=training)
+        x = tf.nn.relu(x)
         x = self.reshape(x)
 
         # TransConv1 + BN + ReLU
