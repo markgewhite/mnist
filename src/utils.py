@@ -1,11 +1,63 @@
 """Utility functions for MNIST GAN."""
 
 import os
+import platform
 from typing import Optional
 
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+
+
+def get_device_info() -> dict:
+    """Detect available compute devices and return info.
+
+    Returns:
+        Dictionary with device information.
+    """
+    devices = tf.config.list_physical_devices()
+    gpus = tf.config.list_physical_devices('GPU')
+
+    info = {
+        'platform': platform.system(),
+        'machine': platform.machine(),
+        'tensorflow_version': tf.__version__,
+        'devices': [d.name for d in devices],
+        'gpu_available': len(gpus) > 0,
+        'gpu_count': len(gpus),
+    }
+
+    # Detect GPU type
+    if info['gpu_available']:
+        if info['platform'] == 'Darwin' and info['machine'] == 'arm64':
+            info['gpu_type'] = 'Apple Metal'
+        else:
+            info['gpu_type'] = 'CUDA'
+    else:
+        info['gpu_type'] = None
+
+    return info
+
+
+def print_device_info() -> None:
+    """Print available compute devices."""
+    info = get_device_info()
+
+    print(f"Platform: {info['platform']} ({info['machine']})")
+    print(f"TensorFlow: {info['tensorflow_version']}")
+
+    if info['gpu_available']:
+        print(f"GPU: {info['gpu_type']} ({info['gpu_count']} device(s))")
+        print("Training will use GPU acceleration")
+    else:
+        print("GPU: Not available")
+        print("Training will use CPU")
+
+        # Platform-specific hints
+        if info['platform'] == 'Darwin' and info['machine'] == 'arm64':
+            print("  Hint: Install tensorflow-metal for GPU support")
+        elif info['platform'] == 'Windows':
+            print("  Hint: Install CUDA toolkit for GPU support")
 
 
 def sample_latent_vectors(

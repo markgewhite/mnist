@@ -79,8 +79,33 @@ Matched to the original MATLAB implementation:
 
 ## Installation
 
+### Basic Installation
+
 ```bash
 pip install -r requirements.txt
+```
+
+### GPU Acceleration
+
+TensorFlow automatically detects and uses available GPUs. Platform-specific setup:
+
+**macOS (Apple Silicon M1/M2/M3):**
+```bash
+# Requires TensorFlow 2.18.x for Metal support
+pip install tensorflow==2.18.0 tensorflow-metal==1.2.0
+```
+
+**Windows/Linux (NVIDIA CUDA):**
+```bash
+# Install CUDA toolkit and cuDNN, then:
+pip install tensorflow[and-cuda]
+```
+
+The code auto-detects available devices at runtime:
+```python
+from src import print_device_info
+print_device_info()
+# Output: Platform, TensorFlow version, GPU availability
 ```
 
 ## Usage
@@ -184,10 +209,20 @@ mnist/
 
 ## Requirements
 
-- TensorFlow >= 2.15.0
+- Python 3.10 - 3.12
+- TensorFlow 2.18.x (for Mac GPU) or TensorFlow >= 2.15.0 (CPU/CUDA)
 - NumPy >= 1.24.0
 - Matplotlib >= 3.7.0
 - Jupyter >= 1.0.0
+
+### Platform Compatibility
+
+| Platform | GPU Support | TensorFlow Version |
+|----------|-------------|-------------------|
+| macOS (Apple Silicon) | Metal | 2.18.0 + tensorflow-metal 1.2.0 |
+| macOS (Intel) | None | >= 2.15.0 |
+| Windows | CUDA | >= 2.15.0 |
+| Linux | CUDA | >= 2.15.0 |
 
 ## License
 
