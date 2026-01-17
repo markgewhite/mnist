@@ -25,7 +25,6 @@ class GANTrainer:
     DEFAULT_D_LEARNING_RATE = 0.00002  # 10:1 ratio for stable training
     DEFAULT_BETA1 = 0.5
     DEFAULT_BETA2 = 0.999
-    DEFAULT_FLIP_FACTOR = 0.1
     DEFAULT_LATENT_DIM = 100
     DEFAULT_LR_DECAY_RATE = 0.96
     DEFAULT_LR_DECAY_STEPS = 1000
@@ -38,7 +37,6 @@ class GANTrainer:
         d_learning_rate: float = DEFAULT_D_LEARNING_RATE,
         beta1: float = DEFAULT_BETA1,
         beta2: float = DEFAULT_BETA2,
-        flip_factor: float = DEFAULT_FLIP_FACTOR,
         latent_dim: int = DEFAULT_LATENT_DIM,
         lr_decay_rate: float = DEFAULT_LR_DECAY_RATE,
         lr_decay_steps: int = DEFAULT_LR_DECAY_STEPS,
@@ -53,7 +51,6 @@ class GANTrainer:
             d_learning_rate: Learning rate for discriminator Adam optimizer.
             beta1: Beta1 parameter for Adam.
             beta2: Beta2 parameter for Adam.
-            flip_factor: Fraction of real probabilities to flip.
             latent_dim: Dimension of latent vectors.
             lr_decay_rate: Exponential decay rate (applied every lr_decay_steps).
             lr_decay_steps: Steps between each decay application.
@@ -65,7 +62,6 @@ class GANTrainer:
         self.d_learning_rate = d_learning_rate
         self.beta1 = beta1
         self.beta2 = beta2
-        self.flip_factor = flip_factor
         self.latent_dim = latent_dim
         self.lr_decay_rate = lr_decay_rate
         self.lr_decay_steps = lr_decay_steps
@@ -105,10 +101,7 @@ class GANTrainer:
             Compiled MNISTGAN model.
         """
         # Create GAN
-        self.model = MNISTGAN(
-            latent_dim=self.latent_dim,
-            flip_factor=self.flip_factor
-        )
+        self.model = MNISTGAN(latent_dim=self.latent_dim)
 
         # Create learning rate schedules with exponential decay
         g_lr_schedule = keras.optimizers.schedules.ExponentialDecay(

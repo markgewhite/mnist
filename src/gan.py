@@ -1,9 +1,8 @@
 """MNIST GAN composite model with custom training step.
 
 Combines Generator and Discriminator with custom train_step implementing
-the training logic from the MATLAB modelGradients.m:
+standard DCGAN training:
 - Binary cross-entropy loss (from_logits=True)
-- Label flipping for regularization
 - Separate optimizer updates for G and D
 """
 
@@ -16,30 +15,26 @@ from .models import Generator, Discriminator
 class MNISTGAN(keras.Model):
     """GAN model combining Generator and Discriminator with custom training.
 
-    Implements the MATLAB training logic:
+    Implements standard DCGAN training:
     1. Generate fake images from latent vectors
-    2. Compute discriminator predictions on real and fake images
-    3. Apply label flipping to real labels for regularization
-    4. Compute BCE losses for both networks
-    5. Update networks with separate optimizers
+    2. Compute discriminator logits on real and fake images
+    3. Compute BCE losses for both networks
+    4. Update networks with separate optimizers
     """
 
     def __init__(
         self,
         latent_dim: int = 100,
-        flip_factor: float = 0.3,
         name: str = "MNISTGAN"
     ):
         """Initialize the MNIST GAN.
 
         Args:
             latent_dim: Dimension of latent input vector for generator.
-            flip_factor: Fraction of real labels to flip (regularization).
             name: Name identifier for the model.
         """
         super().__init__(name=name)
         self.latent_dim = latent_dim
-        self.flip_factor = flip_factor
 
         # Build component networks
         self.generator = Generator(latent_dim=latent_dim)
@@ -94,22 +89,23 @@ class MNISTGAN(keras.Model):
         ]
 
     def train_step(self, real_images: tf.Tensor) -> dict:
-        """Custom training step - EXACT MATLAB match.
+        """Custom training step using standard BCE loss.
 
-        MATLAB modelGradients.m:
-            1. Forward pass through both networks
-            2. Compute probabilities with sigmoid
-            3. Flip some real probabilities (not labels)
-            4. Compute log-based losses manually
-            5. Compute gradients and update
+        Standard DCGAN training:
+            1. Generate fake images from latent vectors
+            2. Get discriminator logits for real and fake
+            3. Compute BCE loss (from_logits=True)
+            4. Update D then G
         """
         batch_size = tf.shape(real_images)[0]
-        eps = 1e-7  # For numerical stability in log
 
         # Sample random latent vectors
         z = tf.random.normal(shape=(batch_size, self.latent_dim))
 
-        # === Compute both gradients from same fake images (matches MATLAB) ===
+        # BCE loss function
+        cross_entropy = keras.losses.BinaryCrossentropy(from_logits=True)
+
+        # === Compute both gradients from same fake images ===
         with tf.GradientTape() as g_tape, tf.GradientTape() as d_tape:
             # Generate fake images
             fake_images = self.generator(z, training=True)
@@ -118,35 +114,19 @@ class MNISTGAN(keras.Model):
             real_logits = self.discriminator(real_images, training=True)
             fake_logits = self.discriminator(fake_images, training=True)
 
-            # Convert to probabilities (MATLAB: sigmoid)
-            prob_real = tf.sigmoid(real_logits)
-            prob_fake = tf.sigmoid(fake_logits)
+            # D loss: real -> 1, fake -> 0
+            d_loss_real = cross_entropy(tf.ones_like(real_logits), real_logits)
+            d_loss_fake = cross_entropy(tf.zeros_like(fake_logits), fake_logits)
+            d_loss = d_loss_real + d_loss_fake
 
-            # Flip some real probabilities (MATLAB: probReal(:,:,:,idx) = 1 - probReal(:,:,:,idx))
-            num_flip = tf.cast(tf.cast(batch_size, tf.float32) * self.flip_factor, tf.int32)
-            flip_indices = tf.random.shuffle(tf.range(batch_size))[:num_flip]
-            flip_mask = tf.scatter_nd(
-                tf.expand_dims(flip_indices, 1),
-                tf.ones(num_flip),
-                [batch_size]
-            )
-            flip_mask = tf.reshape(flip_mask, [-1, 1])
-
-            # Flip: where mask=1, prob becomes (1-prob)
-            prob_real_flipped = prob_real * (1 - flip_mask) + (1 - prob_real) * flip_mask
-
-            # MATLAB loss: lossDiscriminator = -mean(log(probReal)) - mean(log(1-probGenerated))
-            d_loss = -tf.reduce_mean(tf.math.log(prob_real_flipped + eps)) \
-                     -tf.reduce_mean(tf.math.log(1 - prob_fake + eps))
-
-            # MATLAB loss: lossGenerator = -mean(log(probGenerated))
-            g_loss = -tf.reduce_mean(tf.math.log(prob_fake + eps))
+            # G loss: wants D to think fake -> 1
+            g_loss = cross_entropy(tf.ones_like(fake_logits), fake_logits)
 
         # Compute gradients
         d_grads = d_tape.gradient(d_loss, self.discriminator.trainable_variables)
         g_grads = g_tape.gradient(g_loss, self.generator.trainable_variables)
 
-        # Update both networks (MATLAB order: D first, then G)
+        # Update both networks (D first, then G)
         self.d_optimizer.apply_gradients(
             zip(d_grads, self.discriminator.trainable_variables)
         )
@@ -154,7 +134,9 @@ class MNISTGAN(keras.Model):
             zip(g_grads, self.generator.trainable_variables)
         )
 
-        # MATLAB scores
+        # Compute scores for monitoring (probability that D is correct)
+        prob_real = tf.sigmoid(real_logits)
+        prob_fake = tf.sigmoid(fake_logits)
         d_score = (tf.reduce_mean(prob_real) + tf.reduce_mean(1 - prob_fake)) / 2
         g_score = tf.reduce_mean(prob_fake)
 
