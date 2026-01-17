@@ -6,6 +6,9 @@ from tensorflow.keras import layers
 
 from .base import BaseNetwork
 
+# DCGAN weight initialization: N(0, 0.02)
+WEIGHT_INIT = keras.initializers.RandomNormal(mean=0.0, stddev=0.02)
+
 
 class Generator(BaseNetwork):
     """Generator matching MATLAB exactly:
@@ -23,19 +26,19 @@ class Generator(BaseNetwork):
         self.latent_dim = latent_dim
 
         # projectAndReshapeLayer: 100 -> 3*3*112 -> reshape to (3,3,112)
-        self.dense = layers.Dense(3 * 3 * 112, use_bias=False, name="proj_dense")
+        self.dense = layers.Dense(3 * 3 * 112, use_bias=False, kernel_initializer=WEIGHT_INIT, name="proj_dense")
         self.reshape = layers.Reshape((3, 3, 112), name="proj_reshape")
 
         # transposedConv2dLayer(5, 56) - valid padding, stride 1
-        self.tconv1 = layers.Conv2DTranspose(56, 5, strides=1, padding="valid", use_bias=False, name="tconv1")
+        self.tconv1 = layers.Conv2DTranspose(56, 5, strides=1, padding="valid", use_bias=False, kernel_initializer=WEIGHT_INIT, name="tconv1")
         self.bn1 = layers.BatchNormalization(name="bnorm1")
 
         # transposedConv2dLayer(5, 28, stride=2, same)
-        self.tconv2 = layers.Conv2DTranspose(28, 5, strides=2, padding="same", use_bias=False, name="tconv2")
+        self.tconv2 = layers.Conv2DTranspose(28, 5, strides=2, padding="same", use_bias=False, kernel_initializer=WEIGHT_INIT, name="tconv2")
         self.bn2 = layers.BatchNormalization(name="bnorm2")
 
         # transposedConv2dLayer(5, 1, stride=2, same)
-        self.tconv3 = layers.Conv2DTranspose(1, 5, strides=2, padding="same", use_bias=False, name="tconv3")
+        self.tconv3 = layers.Conv2DTranspose(1, 5, strides=2, padding="same", use_bias=False, kernel_initializer=WEIGHT_INIT, name="tconv3")
 
     def build_layers(self):
         pass  # Layers built in __init__
