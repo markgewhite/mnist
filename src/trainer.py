@@ -21,7 +21,8 @@ class GANTrainer:
     # MATLAB-matched default hyperparameters
     DEFAULT_BATCH_SIZE = 60
     DEFAULT_EPOCHS = 500
-    DEFAULT_LEARNING_RATE = 0.0002
+    DEFAULT_G_LEARNING_RATE = 0.0002
+    DEFAULT_D_LEARNING_RATE = 0.0001  # TTUR: slower discriminator
     DEFAULT_BETA1 = 0.5
     DEFAULT_BETA2 = 0.999
     DEFAULT_FLIP_FACTOR = 0.3
@@ -31,7 +32,8 @@ class GANTrainer:
         self,
         batch_size: int = DEFAULT_BATCH_SIZE,
         epochs: int = DEFAULT_EPOCHS,
-        learning_rate: float = DEFAULT_LEARNING_RATE,
+        g_learning_rate: float = DEFAULT_G_LEARNING_RATE,
+        d_learning_rate: float = DEFAULT_D_LEARNING_RATE,
         beta1: float = DEFAULT_BETA1,
         beta2: float = DEFAULT_BETA2,
         flip_factor: float = DEFAULT_FLIP_FACTOR,
@@ -43,7 +45,8 @@ class GANTrainer:
         Args:
             batch_size: Training batch size.
             epochs: Number of training epochs.
-            learning_rate: Learning rate for Adam optimizers.
+            g_learning_rate: Learning rate for generator Adam optimizer.
+            d_learning_rate: Learning rate for discriminator Adam optimizer.
             beta1: Beta1 parameter for Adam.
             beta2: Beta2 parameter for Adam.
             flip_factor: Fraction of real probabilities to flip.
@@ -52,7 +55,8 @@ class GANTrainer:
         """
         self.batch_size = batch_size
         self.epochs = epochs
-        self.learning_rate = learning_rate
+        self.g_learning_rate = g_learning_rate
+        self.d_learning_rate = d_learning_rate
         self.beta1 = beta1
         self.beta2 = beta2
         self.flip_factor = flip_factor
@@ -98,14 +102,14 @@ class GANTrainer:
             flip_factor=self.flip_factor
         )
 
-        # Create optimizers with MATLAB-matched parameters
+        # Create optimizers with TTUR (Two-Timescale Update Rule)
         g_optimizer = keras.optimizers.Adam(
-            learning_rate=self.learning_rate,
+            learning_rate=self.g_learning_rate,
             beta_1=self.beta1,
             beta_2=self.beta2
         )
         d_optimizer = keras.optimizers.Adam(
-            learning_rate=self.learning_rate,
+            learning_rate=self.d_learning_rate,
             beta_1=self.beta1,
             beta_2=self.beta2
         )
