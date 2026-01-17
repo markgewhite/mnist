@@ -64,17 +64,19 @@ graph LR
 
 ## Training Hyperparameters
 
-Matched to the original MATLAB implementation:
+Tuned for stable training with TTUR (Two-Timescale Update Rule):
 
 | Parameter | Value |
 |-----------|-------|
 | Optimizer | Adam |
-| Learning rate | 0.0002 |
+| G learning rate | 0.0002 |
+| D learning rate | 0.00002 (10:1 ratio) |
+| LR decay | 0.96 every 1000 steps |
 | β₁ | 0.5 |
 | β₂ | 0.999 |
-| Batch size | 60 |
-| Epochs | 500 |
-| Label flip probability | 0.3 |
+| Batch size | 100 |
+| Epochs | 50 |
+| Flip factor | 0.1 |
 | Loss | Binary cross-entropy |
 
 ## Installation
@@ -127,12 +129,13 @@ samples = trainer.generate_samples(num_samples=25)
 ```python
 from src import GANTrainer
 
-# Initialize trainer
+# Initialize trainer with custom parameters
 trainer = GANTrainer(
-    batch_size=60,
-    epochs=100,
-    learning_rate=0.0002,
-    flip_factor=0.3
+    batch_size=100,
+    epochs=50,
+    g_learning_rate=0.0002,
+    d_learning_rate=0.00002,
+    flip_factor=0.1
 )
 
 # Load data and build model
@@ -201,11 +204,13 @@ mnist/
 
 | Aspect | This Implementation |
 |--------|---------------------|
-| Projection size | 3×3×112 (matches MATLAB) |
+| Projection size | 3×3×112 |
 | Filter sequence | 28, 56, 112, 224 |
 | Input dropout | 0.5 on discriminator input |
-| Label flipping | 30% of real labels |
-| Loss | BCE with from_logits=True |
+| TTUR | 10:1 G/D learning rate ratio |
+| Probability flipping | 10% of real probabilities |
+| LR decay | Exponential, 0.96 per 1000 steps |
+| Loss | BCE with manual log formulation |
 
 ## Requirements
 

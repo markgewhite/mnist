@@ -18,17 +18,17 @@ class GANTrainer:
     - Training with callbacks
     """
 
-    # MATLAB-matched default hyperparameters
-    DEFAULT_BATCH_SIZE = 60
-    DEFAULT_EPOCHS = 500
+    # Default hyperparameters (tuned for stable training)
+    DEFAULT_BATCH_SIZE = 100
+    DEFAULT_EPOCHS = 50
     DEFAULT_G_LEARNING_RATE = 0.0002
-    DEFAULT_D_LEARNING_RATE = 0.0001  # TTUR: slower discriminator
+    DEFAULT_D_LEARNING_RATE = 0.00002  # 10:1 ratio for stable training
     DEFAULT_BETA1 = 0.5
     DEFAULT_BETA2 = 0.999
-    DEFAULT_FLIP_FACTOR = 0.3
+    DEFAULT_FLIP_FACTOR = 0.1
     DEFAULT_LATENT_DIM = 100
-    DEFAULT_LR_DECAY_RATE = 0.96  # Decay factor per epoch
-    DEFAULT_LR_DECAY_STEPS = 1000  # Decay every N steps
+    DEFAULT_LR_DECAY_RATE = 0.96
+    DEFAULT_LR_DECAY_STEPS = 1000
 
     def __init__(
         self,
